@@ -7,6 +7,9 @@ build/
 .venv/
 venv/
 .env
+*.env
+core.*
+*.core
 *.toml.local
 .coverage
 htmlcov/
