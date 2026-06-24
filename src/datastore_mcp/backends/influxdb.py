@@ -6,9 +6,13 @@ against the REST API directly.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import httpx
+
+# Flux write functions that must be blocked on read-only instances (M-3a).
+_FLUX_WRITE_PATTERN = re.compile(r"\|>\s*(?:experimental\.)?to\s*\(", re.IGNORECASE)
 
 from datastore_mcp.backends.base import Backend
 from datastore_mcp.config import InstanceConfig
@@ -55,10 +59,19 @@ class InfluxDBBackend(Backend):
             "version": version,
         }
 
+    def _check_flux_write(self, flux: str) -> None:
+        """Raise PermissionError if the Flux query contains a write sink (M-3a)."""
+        if not self.cfg.allow_write and _FLUX_WRITE_PATTERN.search(flux):
+            raise PermissionError(
+                "Flux query contains a write operation (to() / experimental.to()). "
+                "Set allow_write = true in config to enable Flux writes."
+            )
+
     async def query(
         self, query: str, params: list | None = None, limit: int = 100
     ) -> list[dict[str, Any]]:
-        """Execute a Flux query. InfluxDB queries are always read-only."""
+        """Execute a Flux query."""
+        self._check_flux_write(query)
         query_api = self._client.query_api()
         tables = await query_api.query(query, org=self._org)
         rows = []
@@ -70,7 +83,14 @@ class InfluxDBBackend(Backend):
     async def schema_inspect(self, table: str | None = None) -> dict[str, Any]:
         buckets = await self._list_buckets()
         if table:
+            bucket_names = {b["name"] for b in buckets}
+            if table not in bucket_names:
+                raise ValueError(
+                    f"Unknown bucket: {table!r}. "
+                    f"Known buckets: {sorted(bucket_names)}"
+                )
             query_api = self._client.query_api()
+            # table is validated against the server's bucket list before interpolation (M-3b)
             flux = (
                 f'import "influxdata/influxdb/schema"\n'
                 f'schema.measurements(bucket: "{table}")'
@@ -118,6 +138,7 @@ class InfluxDBBackend(Backend):
         return await self._list_buckets()
 
     async def flux_query(self, flux: str) -> list[dict[str, Any]]:
+        self._check_flux_write(flux)
         query_api = self._client.query_api()
         tables = await query_api.query(flux, org=self._org)
         return [r.values for t in tables for r in t.records]
