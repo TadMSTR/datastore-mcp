@@ -81,6 +81,8 @@ class ClickHouseBackend(Backend):
         }
 
     async def slow_queries(self, limit: int = 10) -> list[dict[str, Any]]:
+        # SECURITY[accepted]: returns query text from other sessions via system.query_log.
+        # Inherent to the diagnostic purpose; client is a trusted agent. Audit: 2026-06-24/datastore-mcp (I-2).
         result = await self._client.query(
             f"SELECT query, query_duration_ms, read_rows, read_bytes, memory_usage "
             f"FROM system.query_log WHERE type = 'QueryFinish' "

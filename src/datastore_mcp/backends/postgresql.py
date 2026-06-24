@@ -117,6 +117,8 @@ class PostgreSQLBackend(Backend):
     # PostgreSQL-specific extras
 
     async def pg_stat_activity(self) -> list[dict[str, Any]]:
+        # SECURITY[accepted]: returns truncated query text from other sessions.
+        # Inherent to the diagnostic purpose; client is a trusted agent. Audit: 2026-06-24/datastore-mcp (I-2).
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT pid, usename, application_name, client_addr, state, "
