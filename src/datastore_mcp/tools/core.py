@@ -3,6 +3,18 @@ from __future__ import annotations
 
 from typing import Any
 
+from opentelemetry import trace
+
+_tracer = trace.get_tracer("datastore-mcp")
+
+
+def _span(tool_name: str, instance: str, backend_type: str):
+    span = _tracer.start_span(tool_name)
+    span.set_attribute("db.instance", instance)
+    span.set_attribute("db.system", backend_type)
+    span.set_attribute("mcp.tool", tool_name)
+    return trace.use_span(span, end_on_exit=True)
+
 
 def register_core_tools(mcp: Any, registry: Any) -> None:
     @mcp.tool()
@@ -21,7 +33,8 @@ def register_core_tools(mcp: Any, registry: Any) -> None:
     async def health_check(instance: str) -> dict[str, Any]:
         """Ping, version, and connection count for a named datastore instance."""
         backend = await registry.get(instance)
-        return await backend.health_check()
+        with _span("health_check", instance, backend.cfg.type):
+            return await backend.health_check()
 
     @mcp.tool()
     async def query(
@@ -40,7 +53,8 @@ def register_core_tools(mcp: Any, registry: Any) -> None:
         Write statements are blocked unless allow_write = true in config.
         """
         backend = await registry.get(instance)
-        return await backend.query(query, params=params, limit=limit)
+        with _span("query", instance, backend.cfg.type):
+            return await backend.query(query, params=params, limit=limit)
 
     @mcp.tool()
     async def schema_inspect(
@@ -54,7 +68,8 @@ def register_core_tools(mcp: Any, registry: Any) -> None:
         Redis/Valkey: 'table' is a key pattern for SCAN.
         """
         backend = await registry.get(instance)
-        return await backend.schema_inspect(table=table)
+        with _span("schema_inspect", instance, backend.cfg.type):
+            return await backend.schema_inspect(table=table)
 
     @mcp.tool()
     async def slow_queries(
@@ -66,16 +81,19 @@ def register_core_tools(mcp: Any, registry: Any) -> None:
         (InfluxDB, SQLite, connections-only backends).
         """
         backend = await registry.get(instance)
-        return await backend.slow_queries(limit=limit)
+        with _span("slow_queries", instance, backend.cfg.type):
+            return await backend.slow_queries(limit=limit)
 
     @mcp.tool()
     async def db_stats(instance: str) -> dict[str, Any]:
         """Size on disk, row/document counts, cache hit ratio, and backend stats."""
         backend = await registry.get(instance)
-        return await backend.db_stats()
+        with _span("db_stats", instance, backend.cfg.type):
+            return await backend.db_stats()
 
     @mcp.tool()
     async def connections(instance: str) -> dict[str, Any]:
         """Active sessions, wait states, and lock waits for a named instance."""
         backend = await registry.get(instance)
-        return await backend.connections()
+        with _span("connections", instance, backend.cfg.type):
+            return await backend.connections()
