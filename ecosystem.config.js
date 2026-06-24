@@ -2,6 +2,7 @@ module.exports = {
   apps: [{
     name: "datastore-mcp",
     script: "/opt/venvs/datastore-mcp/bin/datastore-mcp",
+    interpreter: "none",
     env: {
       LOG_LEVEL: "INFO",
       DATASTORE_MCP_CONFIG: "/opt/appdata/datastore-mcp/config.toml",
