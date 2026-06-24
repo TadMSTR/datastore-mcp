@@ -1,0 +1,39 @@
+[instances.sandbox-postgres]
+type = "postgresql"
+url = "postgresql://sandbox:sandbox@127.0.0.1:15432/sandbox"
+allow_write = true
+
+[instances.sandbox-clickhouse]
+type = "clickhouse"
+url = "http://127.0.0.1:18123"
+user = "sandbox"
+password = "sandbox"
+allow_write = true
+
+[instances.sandbox-mongo]
+type = "mongodb"
+url = "mongodb://sandbox:sandbox@127.0.0.1:27018/sandbox?authSource=admin"
+allow_write = true
+
+[instances.sandbox-opensearch]
+type = "opensearch"
+url = "http://127.0.0.1:19200"
+allow_write = true
+
+[instances.sandbox-influxdb]
+type = "influxdb"
+url = "http://127.0.0.1:18086"
+token = "sandbox-token"
+org = "sandbox"
+bucket = "sandbox"
+allow_write = true
+
+[instances.sandbox-valkey]
+type = "valkey"
+url = "redis://:sandbox@127.0.0.1:16379"
+allow_write = true
+
+[instances.sandbox-mysql]
+type = "mysql"
+url = "mysql://sandbox:sandbox@127.0.0.1:13306/sandbox"
+allow_write = true

@@ -1,0 +1,77 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "datastore-mcp"
+version = "0.1.0"
+description = "Multi-backend database MCP server for homelab and self-hosted environments"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.0",
+    "pydantic>=2.0",
+    "structlog>=24.0",
+    "sqlglot>=23.0",
+]
+
+[project.optional-dependencies]
+postgresql = ["asyncpg>=0.29"]
+clickhouse = ["clickhouse-connect>=0.7"]
+mongodb = ["motor>=3.5"]
+opensearch = ["opensearch-py>=2.4"]
+influxdb = ["influxdb-client[async]>=1.44"]
+valkey = ["redis>=5.0"]
+mysql = ["aiomysql>=0.2"]
+sqlite = ["aiosqlite>=0.20"]
+telemetry = [
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20",
+]
+all = [
+    "asyncpg>=0.29",
+    "clickhouse-connect>=0.7",
+    "motor>=3.5",
+    "opensearch-py>=2.4",
+    "influxdb-client[async]>=1.44",
+    "redis>=5.0",
+    "aiomysql>=0.2",
+    "aiosqlite>=0.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20",
+]
+
+[project.scripts]
+datastore-mcp = "datastore_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/datastore_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "tests/*",
+    # Backend implementations require live DB connections — covered by integration tests
+    "src/datastore_mcp/backends/postgresql.py",
+    "src/datastore_mcp/backends/clickhouse.py",
+    "src/datastore_mcp/backends/mongodb.py",
+    "src/datastore_mcp/backends/opensearch.py",
+    "src/datastore_mcp/backends/influxdb.py",
+    "src/datastore_mcp/backends/valkey.py",
+    "src/datastore_mcp/backends/mysql.py",
+    "src/datastore_mcp/backends/sqlite.py",
+    "src/datastore_mcp/registry.py",
+    "src/datastore_mcp/server.py",
+    "src/datastore_mcp/tools/core.py",
+    "src/datastore_mcp/tools/extras.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
