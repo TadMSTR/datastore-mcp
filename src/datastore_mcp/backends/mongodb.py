@@ -8,6 +8,23 @@ from urllib.parse import urlparse
 from datastore_mcp.backends.base import Backend
 from datastore_mcp.config import InstanceConfig
 
+_JS_OPERATORS = frozenset({"$where", "$function", "$accumulator"})
+
+
+def _reject_js_operators(doc: Any) -> None:
+    """Raise ValueError if the filter contains server-side JS operators (M-2)."""
+    if isinstance(doc, dict):
+        for key, value in doc.items():
+            if key in _JS_OPERATORS:
+                raise ValueError(
+                    f"MongoDB filter operator {key!r} is not permitted "
+                    "(server-side JavaScript evaluation is blocked)"
+                )
+            _reject_js_operators(value)
+    elif isinstance(doc, list):
+        for item in doc:
+            _reject_js_operators(item)
+
 
 class MongoDBBackend(Backend):
     def __init__(
@@ -62,6 +79,7 @@ class MongoDBBackend(Backend):
         filter_doc = q.get("filter", {})
         projection = q.get("projection")
         sort = q.get("sort")
+        _reject_js_operators(filter_doc)
         coll = self._db[collection_name]
         cursor = coll.find(filter_doc, projection)
         if sort:

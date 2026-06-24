@@ -59,6 +59,13 @@ class SQLiteBackend(Backend):
                 ) as cur:
                     rows = await cur.fetchall()
                 return {"objects": [dict(r) for r in rows]}
+            async with db.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type IN ('table', 'view') AND name = ?",
+                (table,),
+            ) as cur:
+                if not await cur.fetchone():
+                    raise ValueError(f"Unknown table or view: {table!r}")
             async with db.execute(f"PRAGMA table_info({table})") as cur:
                 cols = await cur.fetchall()
             async with db.execute(f"PRAGMA index_list({table})") as cur:
