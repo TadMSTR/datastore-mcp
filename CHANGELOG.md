@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Security
+- Walk full SQL AST to block data-modifying CTEs (`WITH … AS (DELETE …) SELECT …`) on read-only instances (H-1)
+- Invert Valkey/Redis write guard from denylist to allowlist; hard-block EVAL/FCALL/SCRIPT/CONFIG/DEBUG/SHUTDOWN/ACL/SLAVEOF regardless of allow_write (H-2)
+- Fail-closed on unclassified SQL statements (`COPY … FROM PROGRAM`, `GRANT`, `CALL`) — require `allow_ddl=true`; blocks PostgreSQL COPY RCE vector (M-1)
+- Reject MongoDB `$where`/`$function`/`$accumulator` operators to prevent server-side JS evaluation (M-2)
+- Block Flux `to()`/`experimental.to()` write sinks on `allow_write=false` InfluxDB instances (M-3)
+- Validate InfluxDB bucket name against server bucket list before Flux string interpolation (M-3b)
+- Enforce server-side row limit: PostgreSQL cursor `fetch(N)`, ClickHouse `LIMIT N`, InfluxDB `|> limit(n: N)` (L-1)
+- Validate SQLite table name against sqlite_master before PRAGMA interpolation (L-2)
+
 ### Added
 - Initial release: FastMCP server with health, inspection, and query tools
 - 8 backends: PostgreSQL, ClickHouse, MongoDB, OpenSearch, InfluxDB, Valkey/Redis, MySQL, SQLite
