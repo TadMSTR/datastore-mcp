@@ -19,10 +19,12 @@ async def test_query_ping(registry):
 
 
 async def test_query_write_blocked(registry):
-    from datastore_mcp.config import InstanceConfig
-    from datastore_mcp.backends.valkey import ValkeyBackend, _WRITE_COMMANDS
-    # Verify the write command list covers SET
-    assert "SET" in _WRITE_COMMANDS
+    from datastore_mcp.backends.valkey import _ALWAYS_BLOCKED, _READONLY_COMMANDS
+    # Allowlist must not include write commands
+    assert "SET" not in _READONLY_COMMANDS
+    assert "EVAL" in _ALWAYS_BLOCKED
+    # Read commands must be on the allowlist
+    assert "GET" in _READONLY_COMMANDS
 
 
 async def test_schema_inspect_keyspace(registry):

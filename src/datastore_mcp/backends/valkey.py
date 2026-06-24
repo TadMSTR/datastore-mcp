@@ -10,19 +10,51 @@ from typing import Any
 from datastore_mcp.backends.base import Backend
 from datastore_mcp.config import InstanceConfig
 
-_WRITE_COMMANDS = frozenset({
-    "SET", "SETEX", "SETNX", "MSET", "MSETNX", "GETSET",
-    "DEL", "UNLINK", "EXPIRE", "EXPIREAT", "PEXPIRE", "PEXPIREAT", "PERSIST",
-    "RENAME", "RENAMENX", "MOVE", "COPY",
-    "APPEND", "INCR", "INCRBY", "INCRBYFLOAT", "DECR", "DECRBY",
-    "HSET", "HMSET", "HSETNX", "HDEL", "HINCRBY", "HINCRBYFLOAT",
-    "LPUSH", "RPUSH", "LPUSHX", "RPUSHX", "LINSERT", "LSET", "LREM", "LTRIM",
-    "LPOP", "RPOP", "RPOPLPUSH", "LMOVE",
-    "SADD", "SREM", "SMOVE", "SPOP",
-    "ZADD", "ZREM", "ZINCRBY", "ZREMRANGEBYRANK", "ZREMRANGEBYSCORE", "ZREMRANGEBYLEX",
-    "XADD", "XDEL", "XTRIM",
-    "FLUSHDB", "FLUSHALL", "SWAPDB",
+# Hard-blocked regardless of allow_write (H-2): scripting, admin, destructive ops.
+# CONFIG is hard-blocked here; use the valkey_server_info tool for config inspection.
+_ALWAYS_BLOCKED: frozenset[str] = frozenset({
+    "EVAL", "EVALSHA", "EVAL_RO", "EVALSHA_RO",
+    "FCALL", "FCALL_RO", "FUNCTION", "SCRIPT",
+    "DEBUG", "SHUTDOWN", "SLAVEOF", "REPLICAOF",
+    "FAILOVER", "ACL", "MIGRATE", "RESTORE", "CONFIG",
 })
+
+# Allowlist for read-only mode (H-2): inverted from the old denylist.
+# Any command not here is blocked when allow_write=False.
+_READONLY_COMMANDS: frozenset[str] = frozenset({
+    "PING", "ECHO",
+    "EXISTS", "TYPE", "TTL", "PTTL", "EXPIRETIME", "PEXPIRETIME",
+    "KEYS", "SCAN", "RANDOMKEY", "DUMP", "SORT",
+    "GET", "MGET", "GETRANGE", "SUBSTR", "STRLEN", "LCS",
+    "HGET", "HMGET", "HGETALL", "HKEYS", "HVALS", "HLEN", "HEXISTS",
+    "HRANDFIELD", "HSCAN",
+    "LRANGE", "LLEN", "LINDEX", "LPOS",
+    "SMEMBERS", "SISMEMBER", "SMISMEMBER", "SCARD", "SRANDMEMBER",
+    "SINTERCARD", "SSCAN", "SUNION", "SINTER", "SDIFF",
+    "ZRANGE", "ZRANGEBYSCORE", "ZRANGEBYLEX",
+    "ZREVRANGE", "ZREVRANGEBYSCORE", "ZREVRANGEBYLEX",
+    "ZSCORE", "ZMSCORE", "ZRANK", "ZREVRANK", "ZCARD",
+    "ZCOUNT", "ZLEXCOUNT", "ZRANDMEMBER", "ZSCAN",
+    "XLEN", "XRANGE", "XREVRANGE", "XREAD", "XPENDING",
+    "PUBSUB",
+    "GEOPOS", "GEODIST", "GEORADIUS", "GEORADIUSBYMEMBER", "GEOSEARCH", "GEOHASH",
+    "PFCOUNT",
+    "BITCOUNT", "BITPOS", "GETBIT",
+    "INFO", "DBSIZE", "LASTSAVE", "TIME", "WAIT",
+    # Multi-word commands below — subcommand checked via _MULTIWORD_READONLY
+    "SLOWLOG", "CLIENT", "MEMORY", "LATENCY", "CLUSTER", "XINFO", "COMMAND",
+})
+
+# For multi-word commands: only these subcommands are safe on read-only instances.
+_MULTIWORD_READONLY: dict[str, frozenset[str]] = {
+    "SLOWLOG": frozenset({"GET", "LEN", "HELP"}),
+    "CLIENT":  frozenset({"LIST", "ID", "INFO", "GETNAME", "HELP", "NO-EVICT", "NO-TOUCH"}),
+    "MEMORY":  frozenset({"USAGE", "DOCTOR", "STATS", "HELP", "MALLOC-STATS"}),
+    "LATENCY": frozenset({"HISTORY", "LATEST", "HELP"}),
+    "CLUSTER": frozenset({"INFO", "NODES", "SLOTS", "SHARDS", "MYID", "HELP"}),
+    "XINFO":   frozenset({"STREAM", "GROUPS", "CONSUMERS", "HELP"}),
+    "COMMAND": frozenset({"COUNT", "DOCS", "GETKEYS", "HELP", "INFO", "LIST"}),
+}
 
 
 class ValkeyBackend(Backend):
@@ -59,10 +91,23 @@ class ValkeyBackend(Backend):
         if not parts:
             raise ValueError("Empty command")
         cmd = parts[0].upper()
-        if not self.cfg.allow_write and cmd in _WRITE_COMMANDS:
+        subcmd = parts[1].upper() if len(parts) > 1 else ""
+        if cmd in _ALWAYS_BLOCKED:
             raise PermissionError(
-                f"Write command {cmd!r} blocked. "
-                f"Set allow_write = true in config to enable."
+                f"Command {cmd!r} is not permitted "
+                "(scripting, admin, and destructive commands are blocked)."
+            )
+        if cmd in _MULTIWORD_READONLY and not self.cfg.allow_write:
+            allowed = _MULTIWORD_READONLY[cmd]
+            if not subcmd or subcmd not in allowed:
+                raise PermissionError(
+                    f"{cmd} {subcmd!r} is not permitted on a read-only instance. "
+                    f"Allowed subcommands: {', '.join(sorted(allowed))}."
+                )
+        elif not self.cfg.allow_write and cmd not in _READONLY_COMMANDS:
+            raise PermissionError(
+                f"Command {cmd!r} is not on the read-only allowlist. "
+                "Set allow_write = true in config to enable."
             )
         args = parts[1:]
         result = await self._client.execute_command(cmd, *args)
