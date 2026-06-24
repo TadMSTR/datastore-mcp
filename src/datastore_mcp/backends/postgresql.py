@@ -40,8 +40,11 @@ class PostgreSQLBackend(Backend):
     ) -> list[dict[str, Any]]:
         check_write_safety(query, self.cfg, "postgresql")
         async with self._pool.acquire() as conn:
-            rows = await conn.fetch(query, *(params or []))
-        return [dict(r) for r in rows[:limit]]
+            # Use a server-side cursor so the DB stops after `limit` rows (L-1).
+            async with conn.transaction():
+                cursor = await conn.cursor(query, *(params or []))
+                rows = await cursor.fetch(limit)
+        return [dict(r) for r in rows]
 
     async def schema_inspect(self, table: str | None = None) -> dict[str, Any]:
         async with self._pool.acquire() as conn:

@@ -43,12 +43,16 @@ class ClickHouseBackend(Backend):
         self, query: str, params: list | None = None, limit: int = 100
     ) -> list[dict[str, Any]]:
         check_write_safety(query, self.cfg, "clickhouse")
+        import re
+        # Append LIMIT server-side if none present so large tables don't materialise
+        # fully in memory before slicing (L-1). Best-effort check; honours an existing LIMIT.
+        if not re.search(r"\bLIMIT\b", query, re.IGNORECASE):
+            query = f"{query.rstrip().rstrip(';')} LIMIT {limit}"
         result = await self._client.query(query)
-        rows = [
+        return [
             dict(zip(result.column_names, row))
             for row in result.result_rows
         ]
-        return rows[:limit]
 
     async def schema_inspect(self, table: str | None = None) -> dict[str, Any]:
         if table is None:

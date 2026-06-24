@@ -72,13 +72,16 @@ class InfluxDBBackend(Backend):
     ) -> list[dict[str, Any]]:
         """Execute a Flux query."""
         self._check_flux_write(query)
+        # Append |> limit() server-side if none present (L-1).
+        if "|> limit(" not in query.lower():
+            query = f"{query.rstrip()}\n  |> limit(n: {limit})"
         query_api = self._client.query_api()
         tables = await query_api.query(query, org=self._org)
         rows = []
         for table in tables:
             for record in table.records:
                 rows.append(record.values)
-        return rows[:limit]
+        return rows
 
     async def schema_inspect(self, table: str | None = None) -> dict[str, Any]:
         buckets = await self._list_buckets()
