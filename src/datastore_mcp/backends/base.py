@@ -22,21 +22,21 @@ SQL_BACKENDS = frozenset(_DIALECTS)
 
 
 def _classify_sql(sql: str, dialect: str) -> str:
-    """Return 'select', 'dml', 'ddl', or 'other' for a SQL statement."""
+    """Return 'select', 'dml', 'ddl', or 'other' for a SQL statement.
+
+    Walks the full AST so data-modifying CTEs (WITH … AS (DELETE …) SELECT …)
+    are caught even though the top node is a Select (H-1).
+    """
     try:
         stmt = sqlglot.parse_one(sql.strip(), dialect=dialect or None)
     except Exception:
         return "other"
-    if isinstance(stmt, exp.Select):
-        return "select"
-    if isinstance(stmt, exp.With):
-        # CTE — inspect the final statement
-        inner = stmt.this
-        return "select" if isinstance(inner, exp.Select) else "dml"
-    if isinstance(stmt, (exp.Insert, exp.Update, exp.Delete, exp.Merge)):
+    if list(stmt.find_all(exp.Insert, exp.Update, exp.Delete, exp.Merge)):
         return "dml"
-    if isinstance(stmt, (exp.Create, exp.Drop, exp.Alter, exp.TruncateTable)):
+    if list(stmt.find_all(exp.Create, exp.Drop, exp.Alter, exp.TruncateTable)):
         return "ddl"
+    if isinstance(stmt, exp.Select) or stmt.find(exp.Select):
+        return "select"
     return "other"
 
 

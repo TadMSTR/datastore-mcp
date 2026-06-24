@@ -85,3 +85,21 @@ class TestCheckWriteSafety:
         cfg = _cfg()
         with pytest.raises(PermissionError):
             check_write_safety("UPDATE foo SET x = 1 WHERE id = 1", cfg, "postgresql")
+
+    # H-1: data-modifying CTEs must be classified as dml, not select
+    @pytest.mark.parametrize("sql", [
+        "WITH t AS (DELETE FROM x RETURNING *) SELECT * FROM t",
+        "WITH t AS (INSERT INTO x VALUES (1) RETURNING *) SELECT * FROM t",
+        "WITH t AS (UPDATE x SET a=1 RETURNING *) SELECT * FROM t",
+    ])
+    def test_writable_cte_classified_as_dml(self, sql):
+        assert _classify_sql(sql, "postgres") == "dml"
+
+    @pytest.mark.parametrize("sql", [
+        "WITH t AS (DELETE FROM x RETURNING *) SELECT * FROM t",
+        "WITH t AS (INSERT INTO x VALUES (1) RETURNING *) SELECT * FROM t",
+    ])
+    def test_writable_cte_blocked_on_readonly_instance(self, sql):
+        cfg = _cfg(allow_write=False)
+        with pytest.raises(PermissionError, match="Write statements"):
+            check_write_safety(sql, cfg, "postgresql")
