@@ -103,3 +103,14 @@ class TestCheckWriteSafety:
         cfg = _cfg(allow_write=False)
         with pytest.raises(PermissionError, match="Write statements"):
             check_write_safety(sql, cfg, "postgresql")
+
+    # M-1: "other" statements blocked unless allow_ddl=true
+    def test_other_blocked_without_allow_ddl(self):
+        # CALL is classified as "other" by sqlglot
+        cfg = _cfg(allow_write=True, allow_ddl=False)
+        with pytest.raises(PermissionError, match="allow_ddl"):
+            check_write_safety("CALL myfunc()", cfg, "postgresql")
+
+    def test_other_allowed_with_allow_ddl(self):
+        cfg = _cfg(allow_write=True, allow_ddl=True)
+        check_write_safety("CALL myfunc()", cfg, "postgresql")  # no exception

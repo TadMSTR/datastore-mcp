@@ -49,15 +49,18 @@ def check_write_safety(sql: str, cfg: InstanceConfig, backend_type: str) -> None
             f"DDL statements are blocked for this instance. "
             f"Set allow_ddl = true in config to enable."
         )
-    if stmt_type in ("dml",) and not cfg.allow_write:
+    if stmt_type == "dml" and not cfg.allow_write:
         raise PermissionError(
-            f"Write statements (INSERT/UPDATE/DELETE) are blocked for this instance. "
-            f"Set allow_write = true in config to enable."
+            "Write statements (INSERT/UPDATE/DELETE) are blocked for this instance. "
+            "Set allow_write = true in config to enable."
         )
-    if stmt_type == "other" and not cfg.allow_write:
+    if stmt_type == "other" and not cfg.allow_ddl:
+        # Fail-closed: unclassified statements (COPY, GRANT, CALL, DO, etc.) require
+        # allow_ddl=true — COPY … FROM PROGRAM can execute arbitrary commands on the
+        # DB host (M-1).
         raise PermissionError(
-            f"Statement type could not be classified as read-only. "
-            f"Set allow_write = true in config to permit it."
+            "Statement type could not be classified as a safe SELECT or DML. "
+            "Set allow_ddl = true in config to permit COPY, GRANT, CALL, and similar."
         )
 
 
