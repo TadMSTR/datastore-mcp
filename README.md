@@ -26,11 +26,11 @@ pip install datastore-mcp
 # With specific backends
 pip install "datastore-mcp[postgresql,mongodb]"
 
-# All backends
+# All backends (bundles the OTLP exporter — no separate telemetry extra needed)
 pip install "datastore-mcp[all]"
 
-# All backends + OTLP tracing
-pip install "datastore-mcp[all,telemetry]"
+# A partial backend selection plus OTLP tracing
+pip install "datastore-mcp[postgresql,telemetry]"
 ```
 
 Requires Python 3.11+.
@@ -199,27 +199,30 @@ cd datastore-mcp
 python3 -m venv /opt/venvs/datastore-mcp
 /opt/venvs/datastore-mcp/bin/pip install -e ".[all]"
 
-# Place config
-mkdir -p ~/.config/datastore-mcp
-cp config.example.toml ~/.config/datastore-mcp/config.toml
-# Edit with your credentials
+# Place config — ecosystem.config.js points DATASTORE_MCP_CONFIG here
+sudo mkdir -p /opt/appdata/datastore-mcp
+sudo chown "$USER":"$USER" /opt/appdata/datastore-mcp
+touch /opt/appdata/datastore-mcp/config.toml
+chmod 600 /opt/appdata/datastore-mcp/config.toml
+# Edit with your instances and credentials (see Quick start above)
 
 # Start
 pm2 start ecosystem.config.js
 pm2 save
 ```
 
-See [docs/forge.md](docs/forge.md) for the full forge-specific deployment guide including scoped-mcp registration.
+The shipped `ecosystem.config.js` runs the `/opt/venvs/datastore-mcp` entry point with
+`DATASTORE_MCP_CONFIG=/opt/appdata/datastore-mcp/config.toml` and OTLP tracing pointed at
+`127.0.0.1:4317`. See [docs/forge.md](docs/forge.md) for the full forge-specific deployment
+guide including production instance config and scoped-mcp registration.
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
 | `DATASTORE_MCP_CONFIG` | `~/.config/datastore-mcp/config.toml` | Config file path |
-| `LOG_LEVEL` | `INFO` | Logging level |
-| `LOG_FILE` | — | Write logs to file (in addition to stdout) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | — | Enable OTLP tracing (requires `[telemetry]` extra) |
-| `NATS_URL` | — | Enable NATS event publishing |
+| `LOG_LEVEL` | `INFO` | Logging level (set in `ecosystem.config.js`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | — | OTLP gRPC trace endpoint; enables tracing (`[telemetry]` extra, or `[all]`) |
 
 ## Development
 
