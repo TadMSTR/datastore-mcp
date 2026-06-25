@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0] — 2026-06-24
 
 ### Security
 - Walk full SQL AST to block data-modifying CTEs (`WITH … AS (DELETE …) SELECT …`) on read-only instances (H-1)
